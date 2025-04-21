@@ -605,8 +605,6 @@ if __name__ == '__main__':
     if not os.path.exists(output_head_dir):
         os.makedirs(output_head_dir)
 
-    if not os.path.exists(output_trace_dir):
-        os.makedirs(output_trace_dir)
 
     # ----------- All Head QK Trace files ---------------#
     trace_dir = r'./Traces/KVT_Deit_Tiny/'

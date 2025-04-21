@@ -154,7 +154,6 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
     i_nexthead = 0
     last_is_global = None
     while True:
-
         if state is 'idle':
 
             # TIMESTEP 0. Initialize by writing first head's heavy and global
@@ -373,9 +372,7 @@ def global_wrapup(global_leftover, inst_stream):
 
 
 def inst_stream_process(inst_stream):
-
     for k, v in inst_stream.items():
-
         if len(v) > 2:
             idx = list()
             for i in range(len(v)):
@@ -385,188 +382,9 @@ def inst_stream_process(inst_stream):
             _val = v[idx[1]].operand_val 
             for q in _val:
                 v[idx[0]].operand_val.append( q )
-
             v.pop(idx[1])
-
     return inst_stream
-
-def simple_hw_estimate(inst_stream, all_heads):
-    cycle_per_timestep = list()
-
-    for k, v in inst_stream.items():
-        extra_TU = 0
-
-        for _inst in v:
-            if _inst.OP == 'QINFO':
-                continue
-            head_ids = [i.head_id for i in v]
-
-            if len(set(head_ids)) > 1:
-                _hd_rd = v[0].head_id
-                _hd_wr = v[1].head_id
-                assert v[0].OP == 'RD' and v[1].OP == 'WR', f'[ERROR] RD-WR pair not found in timestep {k}'
-
-                num_retire = -1
-                if all_heads[_hd_rd].condition in ['HEAD', 'BALANCED']:
-                    num_retire = len(all_heads[_hd_rd].head_id)
-                elif all_heads[_hd_rd].condition is 'TAIL':
-                    num_retire = len(all_heads[_hd_rd].tail_id)
-                RDing_time = len(v[0].operand_val)
-                
-                _extra_TU = RDing_time - num_retire
-                extra_TU = _extra_TU if _extra_TU > 0 else 0
-
-
-        if len(v) == 1:
-            cycle_per_timestep.append(len(v[0].operand_val))
-        else:
-            _ops = set()
-            for _inst in v:
-                _ops.add(_inst.OP)
-
-            _lat1 = len(v[0].operand_val)
-            _lat2 = len(v[1].operand_val)
-
-            if len(_ops) == 1:
-                cycle_per_timestep.append(_lat1 + _lat2 + extra_TU)
-            else:
-                cycle_per_timestep.append(max(_lat1, _lat2) + extra_TU)
-
-    return cycle_per_timestep
-
-def verify_correctness(QKs, inst_stream):
-    # Verify that, the generated INST stream can indeed compute all necessary Q-K pairs with reasonable cost
-    # QKs: the original QK mat                          (np.array: [All Q, needed K])
-    # inst_stream: the generated instruction stream      (dict. K: timestep, V: list of INSTs)
-    print(f'num_qk = {len(QKs)}')
-    print(f'each with shape {QKs[0].shape}')
-    _cap = QKs[0].shape[0]
-    QK_monitor = copy.deepcopy(QKs)
-
-    active_Q = set()
-    Qoffset = 1000
-
-    depleted_offsetQ = list()
-    activeQ_history = list()
-    for time, insts in inst_stream.items():
-        
-        for _inst in insts:
-            i_head = _inst.head_id
-
-            if _inst.OP == 'WR':
-                # RDing Q with K as input. According to activeQ, eliminate '1's in the KQ_mat according to i_head
-                _offset = i_head * Qoffset
-                [active_Q.add(a + _offset) for a in _inst.operand_val]
-                activeQ_history.append(len(active_Q))
-            elif _inst.OP == 'RD':
-                # writing Q. Add into activeQ with offset (MULed by i_head)
-                head_toRD = _inst.head_id
-                lowcap = head_toRD * Qoffset
-                upcap = (head_toRD+1) * Qoffset
-                activeQ_head = set()
-                for q in active_Q:
-                    if q >= lowcap and q < upcap:
-                        activeQ_head.add(q)
-                
-                # active Q's RD demand are fulfilled. Mark those 1s to -1s
-                for i_q in range(QK_monitor[head_toRD].shape[0]):
-                    for i_k in range(QK_monitor[head_toRD].shape[1]):
-                        _access = QK_monitor[head_toRD][i_q, i_k]
-                        if _access in _inst.operand_val:
-                            QK_monitor[head_toRD][i_q, i_k] = -1
-
-                # pop the already depleted Qs out of active_Q
-                _pop = 0
-                for i_q in range(_cap):
-                    if np.all(QK_monitor[head_toRD][i_q, :] == -1):
-                        i_withoffset = i_q + head_toRD * Qoffset
-                        if i_withoffset in active_Q:
-                            active_Q.remove(i_withoffset)
-                            depleted_offsetQ.append(i_withoffset)
-                            _pop += 1
-                        else:
-                            if i_withoffset in depleted_offsetQ:
-                                pass
-                            else:
-                                print(f'[DEBUG] timestep {time}')
-                                print(f'[DEBUG] INST:\n\t{_inst}')
-                                raise ValueError(f'Q {i_withoffset} not in activeQ')
-                activeQ_history.append(len(active_Q))
-
-                # print(f'\n\t popped {_pop} Q-as-weight in time {time}') if _pop != 0 else None
-            # print(f'[INFO] at time_{time}, #Q active={len(active_Q)}')
-            
-
-
-        # at the end of each timestep, record the activeQ size
-        activeQ_history.append(len(active_Q))
-
-    deplete_size = len(depleted_offsetQ)
-    _Q = list(set(depleted_offsetQ))
-    if deplete_size != len(_Q):
-        raise ValueError(f'Redundant offsetQ foudn in deplete Q record')
     
-    # 
-    if deplete_size != (_cap * len(QKs)):
-        print(f'depleted Qs: (len={len(_Q)})\n{sorted(_Q)}')
-        raise ValueError(f' Deplete size recorded not equal to total #Qs {deplete_size} - {_cap * len(QKs)}')
-    else:
-        print(f'[INFO] Functionality verified. All QK pairs are computed correctly')
-    
-    return activeQ_history
-    
-def calc_activeQ(inst_stream, head_infos):
-    # Compute the Q vectors that should be active at the end of each timestep -> For sake of HW estimation later
-    globQ_counts = []
-    for _head in head_infos:
-        globQ_counts.append(len(_head.global_id))
-    
-    _activeQ = 0
-    for time, insts in inst_stream.items():
-
-        _headid = [inst.head_id for inst in insts]
-        if len(set(_headid)) > 1:
-            condition = 'inter'
-        else:
-            condition = 'intra'
-
-        for _inst in insts:
-
-            _headid = _inst.head_id
-            if _inst.OP == 'WR':
-                # written Qs should be active
-                _activeQ += len(_inst.operand_val)
-            
-            if _inst.OP == 'RD':
-                # after RDing, some Qs may retire
-                # The number of retired Q depends on occasion: interhead/intrahead
-                if condition == 'intra':
-                    assert inst_stream[time-1][-1].OP == 'QINFO', f'[ERROR] inst stream format error. [time-1][-1].OP is not QINFO'
-                    try:
-                        heavy_done = inst_stream[time-1][-1].operand_val - globQ_counts[_headid]
-                    except:
-                        print(f'[DEBUG] time {time}, _headid = {_headid}, len(globQ_counts) = {len(globQ_counts)}')
-                        exit()
-                    _activeQ -= heavy_done
-
-                    if len(insts) == 1:
-                        # reading Ks only. active Q do not change 
-                        _activeQ += heavy_done   # excluding the case when reading the last head's 
-                        if (time+1) == len(inst_stream): 
-                            _activeQ -= (inst_stream[time-1][-1].operand_val)
-
-                elif condition == 'inter':
-                    # reading the rest of old head Ks will cause all old-head's Q to expire (no longer needed)
-                    assert inst_stream[time-1][-1].OP == 'QINFO', f'[ERROR] inst stream format error. [time-1][-1].OP is not QINFO'
-                    heavy_done = inst_stream[time-1][-1].operand_val
-                    _activeQ -= heavy_done
-
-        _QINFO = INST(OP='QINFO', head_id = _headid, operand_type = 'Q', operand_val = _activeQ)
-        
-        inst_stream[time].append(_QINFO)
-    return inst_stream
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--heavy_size', type=int, default=-1, help='heavy size during sorting')
@@ -582,6 +400,8 @@ if __name__ == '__main__':
 
     if not os.path.exists(output_trace_dir):
         os.makedirs(output_trace_dir)
+    if not os.path.exists(output_hd_dir):
+        os.makedirs(output_hd_dir)
 
     # ----------- All Head QK Trace files ---------------#
     trace_dir = r'./Traces/TTST_all/'
@@ -613,7 +433,7 @@ if __name__ == '__main__':
         inst_stream0, glob_leftover, head_infos, num_resort = QK_schedule(QKs, div, CAP, iter_cap = iter_cap, heavy_size = heavy_size, toplot = False, verbose = verbose)
         total_resort += num_resort
 
-        print(f'[INFO] heavy info length = {len(head_infos)}; GLobal_leftover len = {len(glob_leftover)}')
+        print(f'[INFO] #GLOB = {len(glob_leftover)}')
         if len(glob_leftover) != 0:   
             print(f'[INFO] #GLOB = {len(glob_leftover)} out of {len(QKs)} QKs')
             global_wrapup(global_leftover=glob_leftover, inst_stream = inst_stream0)
@@ -622,10 +442,6 @@ if __name__ == '__main__':
         head_infos += glob_leftover
         for _head in head_infos:
             f2.write(f'{_head.metadata_format()}')
-        # globQ_counts = []
-        # for _head in head_infos:
-        #     globQ_counts.append(len(_head.global_id))
-        # print(f'Global Q weights per head:\n {globQ_counts}')
 
         if head_print:
             for _head in head_infos:
@@ -633,16 +449,6 @@ if __name__ == '__main__':
                 # f.write(str(_head) + '\n')
 
         if verbose:
-            print(f'[INFO]: INSTs before calc_activeQ')
-            for k, v in inst_stream.items():
-                print(f'Timestep {k}:')
-                for inst in v:
-                    print(f'\t{inst}')
-
-        inst_stream = calc_activeQ(inst_stream, head_infos)
-
-        if verbose:
-            print(f'[INFO]: INSTs after calc_activeQ')
             for k, v in inst_stream.items():
                 print(f'Timestep {k}:')
                 for inst in v:
@@ -652,15 +458,8 @@ if __name__ == '__main__':
             f.write(f'Timestep {k}:\n')
             for inst in v:
                 f.write(f'\t{inst}\n')
-
-        # print(f'---- ROUGH HW estimate ----')
-        all_heads = head_infos + glob_leftover
             
     f.close()
     print(f'---- SUMMARY ----')
     print(f'Total Resort times: {total_resort} (heavy_size = {heavy_size})')
-    print(f'\tFILE_id\t|\taccelerate%\t')
-    for i in range(len(filewise_accel)):
-        print(f'\t{i}\t|\t{filewise_accel[i]:.2f}%\t')
-    
-    print(f'Average acceleration: {np.mean(filewise_accel):.2f}%')
+    print(f'---- END ----')
