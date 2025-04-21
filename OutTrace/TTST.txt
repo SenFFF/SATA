@@ -32,14 +32,14 @@ Timestep 11:
 	[RD] 0-K. (head_3)
 Timestep 12:
 	[RD] 15-K. (head_3)
-	[WR] 24-Q. (head_4)
+	[WR] 28-Q. (head_4)
 Timestep 13:
-	[WR] 6-Q. (head_4)
-	[RD] 12-K. (head_4)
+	[WR] 2-Q. (head_4)
+	[RD] 13-K. (head_4)
 Timestep 14:
-	[RD] 6-K. (head_4)
+	[RD] 4-K. (head_4)
 Timestep 15:
-	[RD] 12-K. (head_4)
+	[RD] 13-K. (head_4)
 	[WR] 21-Q. (head_5)
 Timestep 16:
 	[WR] 9-Q. (head_5)
@@ -58,9 +58,9 @@ Timestep 2:
 	[RD] 0-K. (head_0)
 Timestep 3:
 	[RD] 15-K. (head_0)
-	[WR] 17-Q. (head_1)
+	[WR] 22-Q. (head_1)
 Timestep 4:
-	[WR] 13-Q. (head_1)
+	[WR] 8-Q. (head_1)
 	[RD] 14-K. (head_1)
 Timestep 5:
 	[RD] 2-K. (head_1)
@@ -282,9 +282,9 @@ Timestep 11:
 	[RD] 0-K. (head_3)
 Timestep 12:
 	[RD] 15-K. (head_3)
-	[WR] 24-Q. (head_4)
+	[WR] 25-Q. (head_4)
 Timestep 13:
-	[WR] 6-Q. (head_4)
+	[WR] 5-Q. (head_4)
 	[RD] 14-K. (head_4)
 Timestep 14:
 	[RD] 2-K. (head_4)
@@ -416,14 +416,14 @@ Timestep 5:
 	[RD] 0-K. (head_1)
 Timestep 6:
 	[RD] 15-K. (head_1)
-	[WR] 26-Q. (head_2)
+	[WR] 21-Q. (head_2)
 Timestep 7:
-	[WR] 4-Q. (head_2)
-	[RD] 15-K. (head_2)
+	[WR] 9-Q. (head_2)
+	[RD] 14-K. (head_2)
 Timestep 8:
-	[RD] 0-K. (head_2)
+	[RD] 2-K. (head_2)
 Timestep 9:
-	[RD] 15-K. (head_2)
+	[RD] 14-K. (head_2)
 	[WR] 18-Q. (head_3)
 Timestep 10:
 	[WR] 12-Q. (head_3)
@@ -458,9 +458,9 @@ Timestep 2:
 	[RD] 0-K. (head_0)
 Timestep 3:
 	[RD] 15-K. (head_0)
-	[WR] 23-Q. (head_1)
+	[WR] 20-Q. (head_1)
 Timestep 4:
-	[WR] 7-Q. (head_1)
+	[WR] 10-Q. (head_1)
 	[RD] 14-K. (head_1)
 Timestep 5:
 	[RD] 2-K. (head_1)
@@ -524,14 +524,14 @@ Timestep 8:
 	[RD] 0-K. (head_2)
 Timestep 9:
 	[RD] 15-K. (head_2)
-	[WR] 20-Q. (head_3)
+	[WR] 23-Q. (head_3)
 Timestep 10:
-	[WR] 10-Q. (head_3)
-	[RD] 12-K. (head_3)
+	[WR] 7-Q. (head_3)
+	[RD] 13-K. (head_3)
 Timestep 11:
-	[RD] 6-K. (head_3)
+	[RD] 4-K. (head_3)
 Timestep 12:
-	[RD] 12-K. (head_3)
+	[RD] 13-K. (head_3)
 	[WR] 23-Q. (head_4)
 Timestep 13:
 	[WR] 7-Q. (head_4)
@@ -624,9 +624,9 @@ Timestep 8:
 	[RD] 0-K. (head_2)
 Timestep 9:
 	[RD] 15-K. (head_2)
-	[WR] 26-Q. (head_3)
+	[WR] 25-Q. (head_3)
 Timestep 10:
-	[WR] 4-Q. (head_3)
+	[WR] 5-Q. (head_3)
 	[RD] 14-K. (head_3)
 Timestep 11:
 	[RD] 2-K. (head_3)
@@ -650,9 +650,9 @@ Timestep 18:
 	[RD] 14-K. (head_5)
 ---- File Index 13 ---- 
 Timestep 0:
-	[WR] 19-Q. (head_0)
+	[WR] 21-Q. (head_0)
 Timestep 1:
-	[WR] 11-Q. (head_0)
+	[WR] 9-Q. (head_0)
 	[RD] 13-K. (head_0)
 Timestep 2:
 	[RD] 4-K. (head_0)
@@ -682,14 +682,14 @@ Timestep 11:
 	[RD] 2-K. (head_3)
 Timestep 12:
 	[RD] 14-K. (head_3)
-	[WR] 23-Q. (head_4)
+	[WR] 27-Q. (head_4)
 Timestep 13:
-	[WR] 7-Q. (head_4)
-	[RD] 12-K. (head_4)
+	[WR] 3-Q. (head_4)
+	[RD] 13-K. (head_4)
 Timestep 14:
-	[RD] 6-K. (head_4)
+	[RD] 4-K. (head_4)
 Timestep 15:
-	[RD] 12-K. (head_4)
+	[RD] 13-K. (head_4)
 	[WR] 30-Q. (head_5)
 Timestep 16:
 	[WR] 0-Q. (head_5)
@@ -724,9 +724,9 @@ Timestep 8:
 	[RD] 0-K. (head_2)
 Timestep 9:
 	[RD] 15-K. (head_2)
-	[WR] 22-Q. (head_3)
+	[WR] 26-Q. (head_3)
 Timestep 10:
-	[WR] 8-Q. (head_3)
+	[WR] 4-Q. (head_3)
 	[RD] 14-K. (head_3)
 Timestep 11:
 	[RD] 2-K. (head_3)
@@ -766,9 +766,9 @@ Timestep 5:
 	[RD] 2-K. (head_1)
 Timestep 6:
 	[RD] 14-K. (head_1)
-	[WR] 25-Q. (head_2)
+	[WR] 23-Q. (head_2)
 Timestep 7:
-	[WR] 5-Q. (head_2)
+	[WR] 7-Q. (head_2)
 	[RD] 14-K. (head_2)
 Timestep 8:
 	[RD] 2-K. (head_2)
@@ -800,9 +800,9 @@ Timestep 18:
 	[RD] 15-K. (head_5)
 ---- File Index 16 ---- 
 Timestep 0:
-	[WR] 30-Q. (head_0)
+	[WR] 27-Q. (head_0)
 Timestep 1:
-	[WR] 0-Q. (head_0)
+	[WR] 3-Q. (head_0)
 	[RD] 4-K. (head_0)
 Timestep 2:
 	[RD] 22-K. (head_0)
@@ -816,30 +816,30 @@ Timestep 5:
 	[RD] 2-K. (head_1)
 Timestep 6:
 	[RD] 14-K. (head_1)
-	[WR] 26-Q. (head_2)
+	[WR] 23-Q. (head_2)
 Timestep 7:
-	[WR] 4-Q. (head_2)
+	[WR] 7-Q. (head_2)
 	[RD] 12-K. (head_2)
 Timestep 8:
 	[RD] 6-K. (head_2)
 Timestep 9:
 	[RD] 12-K. (head_2)
-	[WR] 21-Q. (head_3)
+	[WR] 22-Q. (head_3)
 Timestep 10:
-	[WR] 9-Q. (head_3)
-	[RD] 11-K. (head_3)
+	[WR] 8-Q. (head_3)
+	[RD] 12-K. (head_3)
 Timestep 11:
-	[RD] 8-K. (head_3)
+	[RD] 6-K. (head_3)
 Timestep 12:
-	[RD] 11-K. (head_3)
+	[RD] 12-K. (head_3)
 	[WR] 20-Q. (head_4)
 Timestep 13:
 	[WR] 10-Q. (head_4)
-	[RD] 10-K. (head_4)
+	[RD] 11-K. (head_4)
 Timestep 14:
-	[RD] 10-K. (head_4)
+	[RD] 8-K. (head_4)
 Timestep 15:
-	[RD] 10-K. (head_4)
+	[RD] 11-K. (head_4)
 	[WR] 27-Q. (head_5)
 Timestep 16:
 	[WR] 3-Q. (head_5)
@@ -850,22 +850,22 @@ Timestep 18:
 	[RD] 8-K. (head_5)
 ---- File Index 17 ---- 
 Timestep 0:
-	[WR] 26-Q. (head_0)
+	[WR] 27-Q. (head_0)
 Timestep 1:
-	[WR] 4-Q. (head_0)
-	[RD] 6-K. (head_0)
+	[WR] 3-Q. (head_0)
+	[RD] 8-K. (head_0)
 Timestep 2:
-	[RD] 18-K. (head_0)
+	[RD] 14-K. (head_0)
 Timestep 3:
-	[RD] 6-K. (head_0)
+	[RD] 8-K. (head_0)
 	[WR] 24-Q. (head_1)
 Timestep 4:
 	[WR] 6-Q. (head_1)
-	[RD] 14-K. (head_1)
+	[RD] 13-K. (head_1)
 Timestep 5:
-	[RD] 2-K. (head_1)
+	[RD] 4-K. (head_1)
 Timestep 6:
-	[RD] 14-K. (head_1)
+	[RD] 13-K. (head_1)
 	[WR] 25-Q. (head_2)
 Timestep 7:
 	[WR] 5-Q. (head_2)
@@ -874,35 +874,35 @@ Timestep 8:
 	[RD] 0-K. (head_2)
 Timestep 9:
 	[RD] 15-K. (head_2)
-	[WR] 23-Q. (head_3)
+	[WR] 18-Q. (head_3)
 Timestep 10:
-	[WR] 7-Q. (head_3)
+	[WR] 12-Q. (head_3)
 	[RD] 13-K. (head_3)
 Timestep 11:
 	[RD] 4-K. (head_3)
 Timestep 12:
 	[RD] 13-K. (head_3)
-	[WR] 20-Q. (head_4)
+	[WR] 25-Q. (head_4)
 Timestep 13:
-	[WR] 10-Q. (head_4)
-	[RD] 7-K. (head_4)
+	[WR] 5-Q. (head_4)
+	[RD] 8-K. (head_4)
 Timestep 14:
-	[RD] 16-K. (head_4)
+	[RD] 14-K. (head_4)
 Timestep 15:
-	[RD] 7-K. (head_4)
-	[WR] 24-Q. (head_5)
+	[RD] 8-K. (head_4)
+	[WR] 22-Q. (head_5)
 Timestep 16:
-	[WR] 6-Q. (head_5)
-	[RD] 12-K. (head_5)
+	[WR] 8-Q. (head_5)
+	[RD] 14-K. (head_5)
 Timestep 17:
-	[RD] 6-K. (head_5)
+	[RD] 2-K. (head_5)
 Timestep 18:
-	[RD] 12-K. (head_5)
+	[RD] 14-K. (head_5)
 ---- File Index 18 ---- 
 Timestep 0:
-	[WR] 26-Q. (head_0)
+	[WR] 27-Q. (head_0)
 Timestep 1:
-	[WR] 4-Q. (head_0)
+	[WR] 3-Q. (head_0)
 	[RD] 7-K. (head_0)
 Timestep 2:
 	[RD] 16-K. (head_0)
@@ -911,43 +911,43 @@ Timestep 3:
 	[WR] 25-Q. (head_1)
 Timestep 4:
 	[WR] 5-Q. (head_1)
-	[RD] 9-K. (head_1)
+	[RD] 11-K. (head_1)
 Timestep 5:
-	[RD] 12-K. (head_1)
+	[RD] 8-K. (head_1)
 Timestep 6:
-	[RD] 9-K. (head_1)
-	[WR] 30-Q. (head_2)
+	[RD] 11-K. (head_1)
+	[WR] 27-Q. (head_2)
 Timestep 7:
-	[WR] 0-Q. (head_2)
+	[WR] 3-Q. (head_2)
 	[RD] 12-K. (head_2)
 Timestep 8:
 	[RD] 6-K. (head_2)
 Timestep 9:
 	[RD] 12-K. (head_2)
-	[WR] 21-Q. (head_3)
+	[WR] 26-Q. (head_3)
 Timestep 10:
-	[WR] 9-Q. (head_3)
-	[RD] 12-K. (head_3)
+	[WR] 4-Q. (head_3)
+	[RD] 13-K. (head_3)
 Timestep 11:
-	[RD] 6-K. (head_3)
+	[RD] 4-K. (head_3)
 Timestep 12:
-	[RD] 12-K. (head_3)
-	[WR] 25-Q. (head_4)
+	[RD] 13-K. (head_3)
+	[WR] 24-Q. (head_4)
 Timestep 13:
-	[WR] 5-Q. (head_4)
+	[WR] 6-Q. (head_4)
 	[RD] 13-K. (head_4)
 Timestep 14:
 	[RD] 4-K. (head_4)
 Timestep 15:
 	[RD] 13-K. (head_4)
-	[WR] 27-Q. (head_5)
+	[WR] 25-Q. (head_5)
 Timestep 16:
-	[WR] 3-Q. (head_5)
-	[RD] 10-K. (head_5)
+	[WR] 5-Q. (head_5)
+	[RD] 11-K. (head_5)
 Timestep 17:
-	[RD] 10-K. (head_5)
+	[RD] 8-K. (head_5)
 Timestep 18:
-	[RD] 10-K. (head_5)
+	[RD] 11-K. (head_5)
 ---- File Index 19 ---- 
 Timestep 0:
 	[WR] 19-Q. (head_0)
@@ -958,9 +958,9 @@ Timestep 2:
 	[RD] 0-K. (head_0)
 Timestep 3:
 	[RD] 15-K. (head_0)
-	[WR] 21-Q. (head_1)
+	[WR] 22-Q. (head_1)
 Timestep 4:
-	[WR] 9-Q. (head_1)
+	[WR] 8-Q. (head_1)
 	[RD] 14-K. (head_1)
 Timestep 5:
 	[RD] 2-K. (head_1)
@@ -982,14 +982,14 @@ Timestep 11:
 	[RD] 0-K. (head_3)
 Timestep 12:
 	[RD] 15-K. (head_3)
-	[WR] 25-Q. (head_4)
+	[WR] 24-Q. (head_4)
 Timestep 13:
-	[WR] 5-Q. (head_4)
-	[RD] 13-K. (head_4)
+	[WR] 6-Q. (head_4)
+	[RD] 12-K. (head_4)
 Timestep 14:
-	[RD] 4-K. (head_4)
+	[RD] 6-K. (head_4)
 Timestep 15:
-	[RD] 13-K. (head_4)
+	[RD] 12-K. (head_4)
 	[WR] 19-Q. (head_5)
 Timestep 16:
 	[WR] 11-Q. (head_5)

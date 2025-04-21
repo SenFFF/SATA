@@ -128,7 +128,7 @@ def folder_test(trace_dir):
 
     return filewise_QK  
 
-def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbose = False):
+def QK_schedule(QKs, CAP, iter_cap ,heavy_size = -1, toplot = False, verbose = False):
 
     state = 'idle'
     num_QK = len(QKs)
@@ -136,7 +136,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
     num_resort = 0
 
     if heavy_size == -1:
-        div_head_default = CAP//div
+        div_head_default = CAP // 2
         div_tail_default = CAP - div_head_default
     else:
         div_head_default = heavy_size
@@ -160,7 +160,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
             escaped = False
             while True:
                 qk_raw = QKs[i_nexthead]
-                KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size)
+                KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, heavy_size = heavy_size)
                 if verbose:
                     print(f'  [head_{i_nexthead}] num glob_id = {len(global_id)}')
                 i_nexthead += 1       # debugging, not sure
@@ -170,7 +170,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                     for i in range(iter_cap):
                         print(f'[INFO] re-sorting to escape globalized QK...') if verbose else None
                         num_resort += 1
-                        KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size-i)
+                        KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, heavy_size = heavy_size-i)
                         if verbose:
                             print(f'  [head_{i_nexthead-1}] num glob_id = {len(global_id)}')
 
@@ -267,7 +267,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                 escaped = False
                 while True:
                     qk_raw = QKs[i_nexthead]
-                    KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size)
+                    KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, heavy_size = heavy_size)
                     if verbose:
                         print(f'  [head_{i_nexthead}] num glob_id = {len(global_id)}')
 
@@ -279,7 +279,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                         for i in range(iter_cap):
                             print(f'[INFO] re-sorting to escape globalized QK... ({i} unit away from default heavy_size)') if verbose else None
                             num_resort += 1
-                            KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size - i)
+                            KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, heavy_size = heavy_size - i)
                             if verbose:
                                 print(f'  [head_{i_nexthead-1}] num glob_id = {len(global_id)}')
 
@@ -404,7 +404,7 @@ if __name__ == '__main__':
         os.makedirs(output_hd_dir)
 
     # ----------- All Head QK Trace files ---------------#
-    trace_dir = r'./Traces/TTST_all/'
+    trace_dir = r'./Traces/TTST/'
     CAP=30
     div=3
     _heavy_size = 15
@@ -426,11 +426,10 @@ if __name__ == '__main__':
     for i in range(len(filewise_QKs)):
         if verbose:
             print(f'---- File Index {i} ---- ')
-
         f.write(f'---- File Index {i} ---- \n')
 
         QKs = filewise_QKs[i]
-        inst_stream0, glob_leftover, head_infos, num_resort = QK_schedule(QKs, div, CAP, iter_cap = iter_cap, heavy_size = heavy_size, toplot = False, verbose = verbose)
+        inst_stream0, glob_leftover, head_infos, num_resort = QK_schedule(QKs, CAP, iter_cap = iter_cap, heavy_size = heavy_size, toplot = False, verbose = verbose)
         total_resort += num_resort
 
         print(f'[INFO] #GLOB = {len(glob_leftover)}')
@@ -462,4 +461,7 @@ if __name__ == '__main__':
     f.close()
     print(f'---- SUMMARY ----')
     print(f'Total Resort times: {total_resort} (heavy_size = {heavy_size})')
+    print(f'\t[INFO] Scheduled Time-INST in file {output_trace_dir}')
+    print(f'\t[INFO] Head info in file {output_hd_dir}')
     print(f'---- END ----')
+

@@ -245,12 +245,12 @@ def cumulate_sort(KQ_onehot, numK):
             dummy += KQ_onehot[:, max_id]
     return sortK_order
 
-def classify_weight(KQ_onehot, numK, div=3, heavy_size = -1):
+def classify_weight(KQ_onehot, numK, heavy_size = -1):
     # classify the category of weights(K) based on the sorted Q access
     # into 1. global 2. Head heavy 3. Tail heavy
 
     if heavy_size == -1:
-        region_length = round(numK/div)
+        region_length = numK // 2
     else:
         region_length = heavy_size
     globalized = list()
@@ -327,7 +327,7 @@ def get_first_last_one_idx(onehot):
     return first_id, last_id
 
 
-def head_sort_fix(trace_dir, CAP, toplot, div, heavy_size = -1):
+def head_sort_fix(trace_dir, CAP, toplot, heavy_size = -1):
 
     if type(trace_dir) == str:
         # qk_index = read_trace(trace_dir)
@@ -353,11 +353,10 @@ def head_sort_fix(trace_dir, CAP, toplot, div, heavy_size = -1):
         onehot_plot(KQ_mat_raw[:, sort_id], name='KQ_sortQ')
     
     KQ_mat_sortK = KQ_mat_raw[:, sort_id]
-    global_id, head_id, tail_id = classify_weight(KQ_mat_sortK, numK=CAP, div=div, heavy_size = heavy_size)
+    global_id, head_id, tail_id = classify_weight(KQ_mat_sortK, numK=CAP, heavy_size = heavy_size)
 
     condition = None
 
-    # if len(global_id) >= CAP * (1- 1/div):
     if len(global_id) >= CAP / 2:
         condition = 'GLOBAL'
     else:
