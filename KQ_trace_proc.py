@@ -404,7 +404,7 @@ def head_sort_adapt(trace_dir, CAP, div, toplot=False):
     
     return KQ_mat_sortK, sort_id, global_id, head_id, tail_id, condition
 
-def subhead_sort(qkbin_fold, CAP, div, toplot=False, heavy_size = -1):
+def subhead_sort(qkbin_fold, CAP, toplot=False, heavy_size = -1):
     assert isinstance(qkbin_fold, np.ndarray), f'[ERR] (subhead_sort) input type: {type(qkbin_fold)}'
 
     numQ, numK = qkbin_fold.shape
@@ -417,10 +417,9 @@ def subhead_sort(qkbin_fold, CAP, div, toplot=False, heavy_size = -1):
         onehot_plot(qkbin_fold[:, sort_id], name='KQ_sortQ')
     
     qkbin_sortK = qkbin_fold[:, sort_id]
-    global_id, head_id, tail_id = classify_weight(qkbin_sortK, numK=numK, div=div, heavy_size = heavy_size)
+    global_id, head_id, tail_id = classify_weight(qkbin_sortK, numK=numK, heavy_size = heavy_size)
 
-    if len(global_id) >= numQ * (1- 1/div):
-    # if len(global_id) >= numQ / 2:
+    if len(global_id) >= numQ / 2:
         condition = 'GLOBAL'
     else:
         if len(head_id) > len(tail_id):
