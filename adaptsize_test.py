@@ -4,6 +4,8 @@ import math as m
 import glob
 import copy
 from fixsize_test import head_info, INST, calc_activeQ
+import argparse
+import time
 
 np.set_printoptions(suppress = True)
 
@@ -16,6 +18,7 @@ def folder_test(trace_dir):
         print(f'[INFO-OS] Heading into {_file}...')
         with open(_file, 'r') as f:
             raw_lines = f.readlines()
+        # print(f'[INFO] {_file} has {len(raw_lines)} lines')
 
         holder = list()
         for line in raw_lines:
@@ -40,7 +43,7 @@ def folder_test(trace_dir):
             for i in reversed(topop):
                 splitted.pop(i)
 
-
+            # print(f'len splitted = {len(splitted)}')
             if len(splitted) == 0:
                 #  one head is all processed. 
                 if len(holder) == 0:
@@ -51,6 +54,7 @@ def folder_test(trace_dir):
                     holder = list()         # re-init
             else:
                 holder.append(splitted)
+
     return rawQKs, trace_files
 
 def simple_hw_estimate(inst_stream):
@@ -140,8 +144,10 @@ def verify_correctness(inst_stream, QK, i_foldK):
 def subregion_division(QK, fold_stepQ, fold_stepK, id_foldK, CAP, div, iter_cap, heavy_size = -1, verbose = False):
     # The QK here refer to QK of a single head. Cause now each QK is too large to be sorted at one go; instead they are treated in sub-regions
     # QK: shape= [All Q, needed K] (e.g. 198, 90)
+    _sort_latency = 0
     num_Qfold = m.ceil(QK.shape[0] / fold_stepQ)
     num_Kfold = m.ceil(QK.shape[1] / fold_stepK)                       #  = number of subheads
+    num_resort = 0
 
     if heavy_size == -1:
         div_delta = CAP//div
@@ -159,17 +165,24 @@ def subregion_division(QK, fold_stepQ, fold_stepK, id_foldK, CAP, div, iter_cap,
     # this func only deals with one 'dummy column' in the overall large binary QK_mat
     startK = id_foldK * fold_stepK
     endK = (id_foldK+1) * fold_stepK
-    fold_offset = id_foldK * fold_stepK
-    # fold_offset = 0
-    for i_fold in range(num_Qfold):
 
+    for i_fold in range(num_Qfold):
         fold_CAP = int(CAP/num_Kfold)
         startQ = i_fold * fold_stepQ
         endQ = (i_fold+1) * fold_stepQ
 
         qk_bin_fold = qk_bin[startQ:endQ, startK: endK]       
+        if qk_bin_fold.shape[0] == 0:
+            raise ValueError(f'[ERROR] startQ == endQ. QK_mat is empty. i_fold = {i_fold}; startQ = {startQ}; endQ = {endQ}; startK = {startK}; endK = {endK}')
+
         # returned QK_mat is the sorted binary mat of the current Q/K fold 
+        _start = time.time()
         QK_mat, sort_id, global_id, head_id, tail_id, condition = subhead_sort(qkbin_fold = qk_bin_fold, CAP=fold_CAP, toplot=False, div=div, heavy_size=heavy_size)
+        _end = time.time()
+        _sort_latency += _end - _start
+
+        # if id_foldK == 0:
+        # onehot_plot(QK_mat, name=f'QK_{i_fold}')
 
         # Try to repeat sorting to avoid GLOBAL case
         escaped = False
@@ -180,17 +193,18 @@ def subregion_division(QK, fold_stepQ, fold_stepK, id_foldK, CAP, div, iter_cap,
 
         else:
             # Global. Try resort to avoid GLOBAL
-            for i_iter in range(iter_cap):
+            for i in range(iter_cap):
                 if verbose:
-                    if i_iter == 0:
-                        print(f'[INFO] re-sorting to escape global QK... ({i_iter} unit away from default heavy_size)', end=' ')
+                    if i == 0:
+                        print(f'[INFO] re-sorting to escape global QK... ({i} unit away from default heavy_size)', end=' ')
                     else:
-                        print(f'{i_iter}', end=' ')
+                        print(f'{i}', end=' ')
                         
-                QK_mat, sort_id, global_id, head_id, tail_id, condition = subhead_sort(qkbin_fold = qk_bin_fold, CAP=fold_CAP, toplot=False, div=div, heavy_size=heavy_size - i_iter)
+                QK_mat, sort_id, global_id, head_id, tail_id, condition = subhead_sort(qkbin_fold = qk_bin_fold, CAP=fold_CAP, toplot=False, div=div, heavy_size=heavy_size - i)
+                num_resort += 1
                 if condition is not 'GLOBAL':
                     escaped = True
-                    heavy_offset = i_iter
+                    heavy_offset = i
                     if verbose:
                         print(f'\n[INFO] fold_{i_fold} escape GLOBAL SUCCESS: {condition} (#glob={len(global_id)}; #head={len(head_id)}; #tail={len(tail_id)})', end=' ')
                     break   
@@ -200,7 +214,6 @@ def subregion_division(QK, fold_stepQ, fold_stepK, id_foldK, CAP, div, iter_cap,
             if verbose:
                 print(f'\n[INFO] fold_{i_fold} escape GLOBAL FAILED: {condition} (#glob={len(global_id)}; #head={len(head_id)}; #tail={len(tail_id)})', end=' ')
 
-        ## Zero Elimination
         Ksum = QK_mat.sum(axis=0)
         zeroK = np.where(Ksum == 0)[0]
         Qsum = QK_mat.sum(axis=1)
@@ -212,9 +225,9 @@ def subregion_division(QK, fold_stepQ, fold_stepK, id_foldK, CAP, div, iter_cap,
 
         Korder = sort_id[::-1] if condition is 'TAIL' else sort_id
 
-        _spareQ = list(zeroQ) if len(zeroQ) > 0 else None
-        _spareK = list(zeroK) if len(zeroK) > 0 else None
-        _head = head_info(QK_mat, sort_id, global_id, head_id, tail_id, condition, Korder, qk_id = i_fold + fold_offset, div_head = _div_head, div_tail = _div_tail,
+        _spareQ = list(zeroQ) if len(zeroQ) > 0 else []
+        _spareK = list(zeroK) if len(zeroK) > 0 else []
+        _head = head_info(QK_mat, sort_id, global_id, head_id, tail_id, condition, Korder, qk_id = i_fold, div_head = _div_head, div_tail = _div_tail,
                           spareQ = _spareQ, spareK = _spareK)
 
         if condition is 'GLOBAL':
@@ -223,9 +236,18 @@ def subregion_division(QK, fold_stepQ, fold_stepK, id_foldK, CAP, div, iter_cap,
             subheads.append(_head)
         
     subheads.extend(glob_subheads)
-    return subheads    
+    return subheads, num_resort, _sort_latency
 
-def subhead_schedule(subheads):
+def subhead_schedule(subheads, div, CAP, heavy_size = -1):
+
+
+    # if heavy_size == -1:
+    #     div_delta = CAP//div
+    #     div_head_default = div_delta
+    #     div_tail_default = CAP - div_delta
+    # else:
+    #     div_head_default = heavy_size
+    #     div_tail_default = CAP - heavy_size
 
     # print(f'[INFO] (default) div_head = {div_head_default}; div_tail = {div_tail_default}')
 
@@ -239,7 +261,6 @@ def subhead_schedule(subheads):
 
     i_sub = 0
     while True:
-
         if state is 'idle':
             # first subhead, write heavy & global
             _sub = subheads[i_sub]
@@ -249,14 +270,12 @@ def subhead_schedule(subheads):
             subhead_insts[time_step] = list()
 
             # WRing weights(Q) that will can retire early
-            if new_sub.condition in ['HEAD']:   # ['HEAD', 'BALANCED']
+            if new_sub.condition in ['HEAD', 'BALANCED']:
                 _q_toWR = new_sub.head_id + new_sub.global_id
-                _q_toWR = new_sub.check_spare(op_type = 'Q', op_val = _q_toWR)  # filter the Q that is not accessed by any K in this fold
+                _q_toWR = new_sub.check_spare(op_type = 'Q', op_val = _q_toWR)
             elif new_sub.condition is 'TAIL':
                 _q_toWR = new_sub.tail_id + new_sub.global_id
                 _q_toWR = new_sub.check_spare(op_type = 'Q', op_val = _q_toWR)
-            else:
-                raise ValueError(f'Unknown condition {new_sub.condition} found')
 
             _inst = INST(OP='WR', head_id = new_sub.qk_id, operand_type='Q', operand_val = _q_toWR)
             subhead_insts[time_step].append(_inst)
@@ -268,14 +287,12 @@ def subhead_schedule(subheads):
             # RD the first 1/3 (or 0 ~ heavy_size) of K
             subhead_insts[time_step] = list()
             
-            if new_sub.condition in ['HEAD']:  #['HEAD', 'BALANCED']
+            if new_sub.condition in ['HEAD', 'BALANCED']:
                 _q_toWR = new_sub.tail_id
                 _q_toWR = new_sub.check_spare(op_type = 'Q', op_val = _q_toWR)
             elif new_sub.condition is 'TAIL':
                 _q_toWR = new_sub.head_id
                 _q_toWR = new_sub.check_spare(op_type = 'Q', op_val = _q_toWR)
-            else:
-                raise ValueError(f'Unknown condition {new_sub.condition} found')
             
             _k_toRD = new_sub.Korder[:new_sub.div_head]
             _k_toRD = new_sub.check_spare(op_type = 'K', op_val = _k_toRD)
@@ -330,11 +347,11 @@ def subhead_schedule(subheads):
             _inst = INST(OP='RD', head_id = old_sub.qk_id, operand_type='K', operand_val = _k_toRD)
             subhead_insts[time_step].append(_inst)
 
-            # if state is 'wrapup':
-            #     break
+            if state is 'wrapup':
+                break
 
             # WR new_sub's heavy Q & global Q
-            if new_sub.condition in ['HEAD']: #['HEAD', 'BALANCED']
+            if new_sub.condition in ['HEAD', 'BALANCED']:
                 _q_toWR = new_sub.head_id + new_sub.global_id
             elif new_sub.condition is 'TAIL':
                 _q_toWR = new_sub.tail_id + new_sub.global_id
@@ -394,7 +411,6 @@ def subhead_schedule(subheads):
             subhead_insts[time_step] = list()
             _k_toRD = old_sub.Korder[:old_sub.div_head]
             _k_toRD = old_sub.check_spare(op_type = 'K', op_val = _k_toRD)
-
             _inst = INST(OP='RD', head_id = old_sub.qk_id, operand_type = 'K', operand_val=_k_toRD)
             subhead_insts[time_step].append(_inst)
 
@@ -407,7 +423,6 @@ def subhead_schedule(subheads):
             _inst = INST(OP='WR', head_id = old_sub.qk_id, operand_type = 'Q', operand_val = _q_toWR)
             subhead_insts[time_step].append(_inst)
 
-            # Finish the last subhead's K
             time_step += 1  
             subhead_insts[time_step] = list()
             _k_toRD = old_sub.Korder[old_sub.div_head:old_sub.div_tail]
@@ -426,6 +441,7 @@ def subhead_schedule(subheads):
 
         time_step += 1
 
+    # print(f'[INFO] ---- SCHEDULING ENDS ----')
     return subhead_insts
             
 def subhead_display(subhead_insts, latency):
@@ -450,14 +466,9 @@ def subhead_zeroexam(QK_mat_sub):
 
 
 def simple_hw_estimate(inst_stream, QK_subhead, CAP, div):
-    # print(f'[INFO] qk_subhead type: {type(QK_subhead)}; element type : {type(QK_subhead[0])}')
-    if type(QK_subhead[0]) is list:
-        print(f'QK_subhead[0]: \n{QK_subhead[0]}')
-
     cycle_per_timestep = list()
     # onethird_RD_TU = round(CAP / div)
-    
-    subid_offset = QK_subhead[0].qk_id
+
     for k, v in inst_stream.items():
         # timestep latency
         extra_TU = 0
@@ -471,10 +482,10 @@ def simple_hw_estimate(inst_stream, QK_subhead, CAP, div):
                 assert v[0].OP is 'RD' and v[1].OP is 'WR', f'[ERROR] RD-WR pair order mistaken'
 
                 num_retire = -1
-                if QK_subhead[_sub_rd-subid_offset].condition in ['HEAD', 'BALANCED']:
-                    num_retire = len(QK_subhead[_sub_rd-subid_offset].head_id)
+                if QK_subhead[_sub_rd].condition in ['HEAD', 'BALANCED']:
+                    num_retire = len(QK_subhead[_sub_rd].head_id)
                 else:
-                    num_retire = len(QK_subhead[_sub_rd-subid_offset].tail_id)
+                    num_retire = len(QK_subhead[_sub_rd].tail_id)
                 
                 RDing_time = len(v[0].operand_val)
 
@@ -489,10 +500,7 @@ def simple_hw_estimate(inst_stream, QK_subhead, CAP, div):
                 _ops.add(_inst.OP)
 
             _lat1 = len(v[0].operand_val)
-            try:
-                _lat2 = len(v[1].operand_val) if v[1].OP is not 'QINFO' else 0
-            except:
-                print(f'[ERROR] v[1] = {v[1]}')
+            _lat2 = len(v[1].operand_val)
 
             if len(_ops) == 1:
                 cycle_per_timestep.append(_lat1 + _lat2 + extra_TU)
@@ -501,28 +509,36 @@ def simple_hw_estimate(inst_stream, QK_subhead, CAP, div):
 
     return cycle_per_timestep
 
-def single_QK_test(QK, div, CAP, fold_stepQ, fold_stepK, heavy_size, iter_cap, f, verbose = False, equalize = False):
-    # f: opened file handle
+def single_QK_test(QK, div, CAP, fold_stepQ, fold_stepK, heavy_size, iter_cap, f, f2, verbose = False, equalize = False):
+    # f: opened file handle: temporal trace
+    # f2: opened file handle: head info
+    sort_latency = 0
 
     # QK_binary = KQ_onehot(Ks_Qaccess(QK, CAP=CAP), CAP=CAP, numQ = QK.shape[0])
     numK_effective = QK.shape[0]
     num_foldK = m.ceil(numK_effective / fold_stepK)
 
+    inst_stream_subwise = dict()
     QK_subheads_subwise = list()
 
-    inst_stream_all = dict()
+    lat_Kfold = list()
+    num_resort = 0
+    subheads = list()
 
     i_subhd = 0
     for i_foldK in range(num_foldK):
 
-        QK_subhead = subregion_division(QK, fold_stepQ = fold_stepQ, fold_stepK = fold_stepK, id_foldK = i_foldK,
+        QK_subhead, _num_resort, _sort_lat = subregion_division(QK, fold_stepQ = fold_stepQ, fold_stepK = fold_stepK, id_foldK = i_foldK,
                                         CAP=CAP, div=div, iter_cap = iter_cap, heavy_size=heavy_size, verbose = verbose)
+        num_resort += _num_resort
+        subheads.extend(QK_subhead)
+        sort_latency += _sort_lat
 
-        # for _sub in QK_subhead: 
-        #     print(f'[INFO] subhead_{_sub.qk_id}: {len(_sub.head_id)}-{len(_sub.tail_id)}-{len(_sub.global_id)}')
-
-        _inst_stream0 = subhead_schedule(QK_subhead)
-
+        # print(f'QK_subhead: ')
+        # for _sub in QK_subhead:
+        #     print(f'\t{_sub}')
+        # exit()
+        _inst_stream0 = subhead_schedule(QK_subhead, div, CAP = fold_stepK, heavy_size=heavy_size)
         _inst_stream = calc_activeQ(copy.deepcopy(_inst_stream0), QK_subhead)
 
         # f.write(f'---- fold Index {i_subhd} ----\n')
@@ -533,7 +549,8 @@ def single_QK_test(QK, div, CAP, fold_stepQ, fold_stepK, heavy_size, iter_cap, f
         f.write('\n')
         i_subhd += 1
 
-        lat = simple_hw_estimate(_inst_stream0, QK_subhead, CAP = fold_stepK, div=div)
+        for _sub in QK_subhead:
+            f2.write(f'{_sub.metadata_format()}')
 
         if verbose:
             subhead_display(_inst_stream, lat)
@@ -541,118 +558,147 @@ def single_QK_test(QK, div, CAP, fold_stepQ, fold_stepK, heavy_size, iter_cap, f
             print(f'[INFO] K_fold_ID_{i_foldK}:')
             print(f'[HW ESTI]:\t\t{sum(lat)} TU \n')
 
-        QK_subheads_subwise.extend(QK_subhead)
-        inst_stream_all.update(_inst_stream)
+        # lat_Kfold.append(sum(lat))
 
-    all_lat = simple_hw_estimate(inst_stream_all, QK_subheads_subwise, CAP = fold_stepK, div=div)
+        # _QK_subK = QK_binary[:, i_foldK * fold_stepK: (i_foldK+1) * fold_stepK]
+        # verify_correctness(QK = QK, inst_stream = inst_stream, i_foldK = i_foldK)
 
-    lat_sum = sum(all_lat)
-    overall_accelerate = (CAP*2 / lat_sum - 1) * 100
+        inst_stream_subwise[i_foldK] = _inst_stream
+        QK_subheads_subwise.append(QK_subhead)
 
-    print(f'[INFO] overall latency (max): {lat_sum}')
-    print(f'[INFO] accelerate% = {overall_accelerate:.2f}%')
+    # overall_lat = max(lat_Kfold)
+    # overall_accelerate = (CAP*2 / overall_lat - 1) * 100
 
-    print('\n')
+    # print(f'[INFO] K-fold wise latency: \n{lat_Kfold}')
+    # print(f'[INFO] overall latency (max): {overall_lat}')
+    # print(f'[INFO] best case latency (min): {min(lat_Kfold)}')
+    # print(f'[INFO] accelerate% = {overall_accelerate:.2f}%')
 
-    return all_lat, overall_accelerate, None, None
+    # _lat_wr = CAP
+    # _lat_rd = m.ceil(CAP/fold_stepQ) * fold_stepK
+    # _direct_delay = _lat_wr  + _lat_rd
+    # columnwise_accelerate = [(_direct_delay / lat - 1) * 100 for lat in lat_Kfold]
+    
+
+    # print(f'[INFO] columnwise accelerate%: ')
+    # for i in columnwise_accelerate:
+    #     print(f'{i:.2f}', end=', ')
+    # print('\n')
+
+    return -1, -1, None, None, num_resort, subheads, sort_latency
 
 if __name__ == '__main__':
 
-    verbose = False
+    argparse = argparse.ArgumentParser()
+    argparse.add_argument('--heavy_size', type = int, default = -1)
+    argparse.add_argument('--fold_step', type = int, default = -1)
+    args = argparse.parse_args()
+    heavy_size_arg = args.heavy_size
+    fold_step_arg = args.fold_step
+
+    verbose = True
     output_trace_dir = r'./OutTrace/'
+    output_head_dir = r'./OutHead/'
+
+    if not os.path.exists(output_trace_dir):
+        os.makedirs(output_trace_dir)
+    if not os.path.exists(output_head_dir):
+        os.makedirs(output_head_dir)
 
     if not os.path.exists(output_trace_dir):
         os.makedirs(output_trace_dir)
 
-    # ----------- Single Head QK Trace ---------------#
-    # trace_dir = r'./Traces/TTST.txt'
-    # CAP=30
-
-    # trace_dir = r'./Traces/KVT.txt'
-    # CAP=198
-
-    # trace_dir = r'./Traces/EST.txt'
-    # CAP=64
-
     # ----------- All Head QK Trace files ---------------#
-    trace_dir = r'./Traces/KVT_all/'
+    trace_dir = r'./Traces/KVT_Deit_Tiny/'
     CAP=198
     div=3
-    fold_stepQ = 10
-    ## fold_stepK = 12
+    fold_stepQ = 33
+    fold_stepQ = fold_step_arg if fold_step_arg != -1 else fold_stepQ
     fold_stepK = fold_stepQ
-    heavy_size = 5
-    ## iter_cap = 6
+    heavy_size = int(fold_stepQ / 2)
+    heavy_size = heavy_size_arg if heavy_size_arg != -1 else heavy_size
     iter_cap = heavy_size
-    output_trace_dir += 'KVT.txt'
+    output_trace_dir += 'KVT.txt'           # specific to KVT_Deit_Tiny
+    output_head_dir += 'KVThd.txt'
+
+    # trace_dir = r'./Traces/KVT_Deit_Base/'
+    # CAP=198
+    # div=3
+    # fold_stepQ = 18
+    # fold_stepQ = fold_step_arg if fold_step_arg != -1 else fold_stepQ
+    # fold_stepK = fold_stepQ
+    # heavy_size = int(fold_stepQ / 2)
+    # heavy_size = heavy_size_arg if heavy_size_arg != -1 else heavy_size
+    # iter_cap = heavy_size
+    # output_trace_dir += 'KVTBase.txt'
+    # output_head_dir += 'KVTBasehd.txt'
 
     # trace_dir = r'./Traces/DRS_all/'
-    # CAP=48
+    # CAP=48    
     # div=3
-    # fold_stepQ = 8
-    # # fold_stepK = 12
+    # fold_stepQ = 6
+    # fold_stepQ = fold_step_arg if fold_step_arg != -1 else fold_stepQ
     # fold_stepK = fold_stepQ
-    # heavy_size = 4
+    # heavy_size = int(fold_stepQ / 2)
+    # heavy_size = heavy_size_arg if heavy_size_arg != -1 else heavy_size
     # iter_cap = heavy_size
     # output_trace_dir += 'DRS.txt'
+    # output_head_dir += 'DRShd.txt'
 
-    # trace_dir = r'./Traces/TTST_all/'
-    # CAP=30
-    # div=3
-    # fold_stepQ = 10
-    # # fold_stepK = 30
-    # fold_stepK = fold_stepQ
-    # heavy_size = 5
-    # iter_cap = heavy_size
+    # ---- All Global infos ---- #
+    # a folder dir means to test all head in all file
 
-    if 'txt' in trace_dir:
-        # means that only a single head trace is given
-        KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(trace_dir=trace_dir, CAP=CAP, toplot = False, div=div)
-        # print(f'KQ mat shape:{KQ_mat.shape}')
-    else:
-        # ---- All Global infos ---- #
-        # a folder dir means to test all head in all file
 
-        QKs, _ = folder_test(trace_dir)
-        print(f'[INFO] #QKs = {len(QKs)}')
-        print(f'[INFO] sample QK shape: {QKs[0].shape[0]}x{QKs[0].shape[1]}')
 
-        latency = list()
-        accelerate = list()
-        latency_equalize = list()
-        accelerate_equalize = list()
+    sort_lat_total = 0
+    num_resort_tot = 0
+    QKs, _ = folder_test(trace_dir)
+    print(f'[INFO] #QKs = {len(QKs)}')
+    print(f'[INFO] sample QK shape: {QKs[0].shape}; fold size: {fold_stepQ}')
 
-        # onehot_plot(KQ_onehot(Ks_Qaccess(QKs[0], CAP=CAP), CAP=CAP, numQ = QKs[0].shape[0]), name='QK_0')
-        headwise_accel = []
-        f = open(output_trace_dir, 'w')
+    latency = list()
+    accelerate = list()
+    latency_equalize = list()
+    accelerate_equalize = list()
 
-        equalize = False
-        for i_qk in range(len(QKs)):
-            print(f'[INFO] QK _ {i_qk}')
-            _QK = QKs[0]
-            # QK_binary = KQ_onehot(Ks_Qaccess(QK, CAP=CAP), CAP=CAP, numQ = QK.shape[0])
-            numK_effective = _QK.shape[0]
+    # onehot_plot(KQ_onehot(Ks_Qaccess(QKs[0], CAP=CAP), CAP=CAP, numQ = QKs[0].shape[0]), name='QK_0')
+    headwise_accel = []
+    f = open(output_trace_dir, 'w')
+    f2 = open(output_head_dir, 'w')
+    f2.write(f'#head_id, #tail_id, #glob_id, #spareQ, #spareK, Heavy Size, INIT_Size {fold_stepQ} \n')
+    start_time = time.time()
+    
 
-            f.write(f'---- qk Index {i_qk} ----\n')
-            lat, accel, lat_eql, accel_eql = single_QK_test(_QK, div, CAP, fold_stepQ, fold_stepK, heavy_size, iter_cap, f, verbose = verbose, equalize = equalize)
+    for i_qk in range(len(QKs)):
+        # print(f'[INFO] QKs _ \n{QKs[i_qk]}')
+        
+        _QK = QKs[i_qk]
+        # QK_binary = KQ_onehot(Ks_Qaccess(QK, CAP=CAP), CAP=CAP, numQ = QK.shape[0])
+        numK_effective = _QK.shape[0]
 
-            latency.append(lat)
-            accelerate.append(accel)
-            if equalize:
-                latency_equalize.append(lat_eql)
-                accelerate_equalize.append(accel_eql)
+        f.write(f'---- qk Index {i_qk} ----\n')
+        lat, accel, lat_eql, accel_eql, num_resort, subheads, sort_lat = single_QK_test(_QK, div, CAP, fold_stepQ, fold_stepK, heavy_size, iter_cap, f, f2, verbose = False, equalize = False)
+        num_resort_tot += num_resort
+        sort_lat_total += sort_lat
 
-        print(f'------- SUMMARY -------')
-        print(f'\tQK_id\t|\tRaw accelerate %\t|\t Equalized accelerate %')
-        for i in range(len(QKs)):
-            if equalize:
-                print(f'\t{i}\t|\t{accelerate[i]:.2f}\t|\t{accelerate_equalize[i]:.2f}')
-            else:
-                print(f'\t{i}\t|\t{accelerate[i]:.2f}\t|\t-')
+        latency.append(lat)
+        accelerate.append(accel)
+        # print(f'[INFO] QK_{i_qk} subheads:')
+        # for _sub in subheads:
+        #     print(f'\t{_sub}')
 
-        print(f'[AVERAGE]:')
-        print(f'\t Raw acceleration % = {sum(accelerate) / len(accelerate):.2f}% (max={max(accelerate):.2f}%; min={min(accelerate):.2f}%)')
-        if equalize:
-            print(f'\t Equalized acceleration % = {sum(accelerate_equalize) / len(accelerate_equalize):.2f}% (max={max(accelerate_equalize):.2f}%; min={min(accelerate_equalize):.2f}%)')
-        f.close()
+    end_time = time.time()
+    elapse = end_time - start_time
+    print(f'[INFO] Scheduling elapse time = {elapse:.2f} sec')
+    print(f'\tsort latency = {sort_lat_total:.2f} s')
+    # print(f'------- SUMMARY -------')
+    # print(f'\tQK_id\t|\tRaw accelerate %\t|\t Equalized accelerate %')
+    # for i in range(len(QKs)):
+    #     print(f'\t{i}\t|\t{accelerate[i]:.2f}\t|\t-')
+
+    # print(f'[AVERAGE]:')
+    # print(f'\t Raw acceleration % = {sum(accelerate) / len(accelerate):.2f}% (max={max(accelerate):.2f}%; min={min(accelerate):.2f}%) (fold_step = {fold_stepQ})')
+    print(f'\t Num_resort = {num_resort_tot}')
+    f.close()
+    f2.close()
         

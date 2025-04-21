@@ -3,11 +3,12 @@ import numpy as np
 import math as m
 import glob
 import copy
+import argparse
 
 np.set_printoptions(suppress = True)
 
 class head_info:
-    def __init__(self, KQ_mat, sort_id, global_id, head_id, tail_id, condition, Korder, qk_id, div_head, div_tail, spareQ = None, spareK = None):
+    def __init__(self, KQ_mat, sort_id, global_id, head_id, tail_id, condition, Korder, qk_id, div_head, div_tail, spareQ = [], spareK = []):
         self.KQ_mat = KQ_mat
         self.sort_id = sort_id
         self.global_id = global_id
@@ -47,10 +48,16 @@ class head_info:
         # retval += f'\thead_id (#={len(self.head_id)}): {self.head_id}\n'
         # retval += f'\ttail_id (#={len(self.tail_id)}): {self.tail_id}\n'
         # retval += f'\tglobal_id (#={len(self.global_id)}): {self.global_id}\n'
-        retval += f'\thead_id (#={len(self.head_id)}) \n'
+        retval += f'\thead_id (#={len(self.head_id)})\n'
         retval += f'\ttail_id (#={len(self.tail_id)}) \n'
         retval += f'\tglobal_id (#={len(self.global_id)}) \n'
+        retval += f'\t#spareK= {len(self.spareK)}\n'
+        retval += f'\t#spareQ= {len(self.spareQ)}\n'
         # retval += f'\tKorder: {self.Korder}\n'
+        return retval
+    
+    def metadata_format(self):
+        retval = f'{len(self.head_id)}, {len(self.tail_id)}, {len(self.global_id)}, {len(self.spareK)}, {len(self.spareQ)}, {self.div_head}\n'
         return retval
 
 class INST:
@@ -78,7 +85,7 @@ def folder_test(trace_dir):
 
     for _file in trace_files:
         rawQKs = list()
-        print(f'[INFO-OS] Heading into {_file}...')
+        # print(f'[INFO-OS] Heading into {_file}...')
         with open(_file, 'r') as f:
             raw_lines = f.readlines()
 
@@ -100,12 +107,14 @@ def folder_test(trace_dir):
 
                 splitted[i] = item
 
+
             # pop out in reverse order
             for i in reversed(topop):
                 splitted.pop(i)
 
+
             if len(splitted) == 0:
-                # A Q-K is all processed. 
+                #  one head is all processed. 
                 if len(holder) == 0:
                     continue
                 else:
@@ -123,20 +132,18 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
 
     state = 'idle'
     num_QK = len(QKs)
-    head_infos = []
+    head_infos = list()
+    num_resort = 0
 
     if heavy_size == -1:
         div_head_default = CAP//div
         div_tail_default = CAP - div_head_default
-        if verbose:
-            print(f'[INFO] Heavy Size decided by DIV')
     else:
         div_head_default = heavy_size
         div_tail_default = CAP - heavy_size
-        if verbose:
-            print(f'[INFO] Heavy Size Assigned Manually')
+
+    # iter_cap = 3
     
-    # Data Struct Init
     inst_stream = dict()                        # key: timestep, value: list of INST
     global_leftover = list()                    # the list of QK that is classified as 'GLOBALized'. Process those at the end
     time_step = 0
@@ -149,30 +156,28 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
     while True:
 
         if state is 'idle':
+
             # TIMESTEP 0. Initialize by writing first head's heavy and global
             escaped = False
-
-            # Keep Fetching Until non-Glob QK is found
             while True:
                 qk_raw = QKs[i_nexthead]
-                KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size)   # CAP here == numQ (Q/K DIM)
-
+                KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size)
                 if verbose:
                     print(f'  [head_{i_nexthead}] num glob_id = {len(global_id)}')
-
-                i_nexthead += 1
+                i_nexthead += 1       # debugging, not sure
                 if condition is not 'GLOBAL':
                     break
                 else:
-                    for i_it in range(iter_cap):
+                    for i in range(iter_cap):
                         print(f'[INFO] re-sorting to escape globalized QK...') if verbose else None
-                        KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size-i_it)
+                        num_resort += 1
+                        KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size-i)
                         if verbose:
                             print(f'  [head_{i_nexthead-1}] num glob_id = {len(global_id)}')
 
                         if condition is not 'GLOBAL':
                             escaped = True
-                            div_head_escape = heavy_size - i_it
+                            div_head_escape = heavy_size - i
                             div_tail_escape = CAP - div_head_escape
                             break
                     if escaped:
@@ -187,12 +192,12 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                         if i_nexthead == num_QK:
                             # All Qks deemed as globalized.
                             return inst_stream, global_leftover
+                # i_nexthead += 1
 
             if condition == 'TAIL':
-                # For tail condition, reverse the sort_id so that heavy Qs can start compute first
                 Korder = sort_id[::-1]
             else:
-                # HEAD/GLOBAL cases use the sorted id directly
+                # HEAD/GLOBAL/BALANCED cases use the sorted id directly
                 Korder = sort_id
             
             _div_head = div_head_escape if escaped else div_head_default
@@ -204,7 +209,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
 
             inst_stream[time_step] = list()
             # WR heavy
-            if condition in ['HEAD']:  #['HEAD', 'BALANCED']
+            if condition in ['HEAD', 'BALANCED']:
                 _inst = INST(OP='WR', head_id = i_nexthead-1, operand_type = 'Q', operand_val = new_head.head_id + new_head.global_id)
                 inst_stream[time_step].append(_inst)
             elif condition is 'TAIL':
@@ -216,15 +221,15 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
         elif state is 'intohead':
             # start RDing into the head: RD first 1/3. & WR the leftover Qs of the head
             inst_stream[time_step] = list()
-            if new_head.condition in ['HEAD']: #['HEAD', 'BALANCED']
-                # last QK is head-heavy. WR last QK's tail
+            if new_head.condition in ['HEAD', 'BALANCED']:
+                # last QK is head-heavy. WR last QK's tail, RD first 2/3 of last QK's K
 
                 # WR head's leftover Q
                 _inst = INST(OP='WR', head_id = new_head.qk_id, operand_type = 'Q', operand_val = new_head.tail_id)
                 inst_stream[time_step].append(_inst)
 
             elif new_head.condition is 'TAIL':
-                # last QK is tail-heavy. WR last QK's head
+                # last QK is tail-heavy. WR last QK's head, RD first 2/3 of last QK's (reversed) K
 
                 # WR oldhead's leftover Q
                 _inst = INST(OP='WR', head_id = new_head.qk_id, operand_type = 'Q', operand_val = new_head.head_id)
@@ -237,8 +242,8 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
             state = 'midsthead'
 
         elif state is 'midsthead':
-            #  RDing the middle part of K (e.g. 1/3 ~ 2/3, depends on heavy size)
-            # this part of K is Assumed necessary for both TAIL-heavy, HEAD-heavy and GLOBAL Qs and is the optimization target (as small as possible)
+            #  RDing the middle part of K (e.g. 1/3 ~ 2/3)
+            # this part of K is Assumed necessary for both TAIL-heaby, HEAD-heavy and GLOBAL Qs and is the optimization target (as small as possible)
             inst_stream[time_step] = list()
             _inst = INST(OP='RD', head_id = new_head.qk_id, operand_type='K', operand_val = new_head.Korder[new_head.div_head:new_head.div_tail])
             inst_stream[time_step].append(_inst)
@@ -246,7 +251,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
             state = 'outtahead'
 
         elif state is 'outtahead':
-            # RDing the last part of K (e.g. 66% ~ 100%) of the old_head & 
+            # RDing the last 1/3 K (66% ~ 100%) of the head & 
             # Start writing Heavy + Glob part of the new head
 
             # holder update
@@ -258,7 +263,8 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                 inst_stream[time_step].append(_inst)
                 break
             else:
-                # Fetch the next head and pre-process
+                # old_head = new_head
+
                 escaped = False
                 while True:
                     qk_raw = QKs[i_nexthead]
@@ -266,20 +272,21 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                     if verbose:
                         print(f'  [head_{i_nexthead}] num glob_id = {len(global_id)}')
 
-                    i_nexthead += 1       
+                    i_nexthead += 1       # not sure
                     if condition is not 'GLOBAL':
                         last_is_global = False
                         break
                     else:
-                        for i_it in range(iter_cap):
-                            print(f'[INFO] re-sorting to escape globalized QK... ({i_it} unit away from default heavy_size)') if verbose else None
-                            KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size - i_it)
+                        for i in range(iter_cap):
+                            print(f'[INFO] re-sorting to escape globalized QK... ({i} unit away from default heavy_size)') if verbose else None
+                            num_resort += 1
+                            KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(qk_raw, CAP=CAP, toplot = toplot, div = div, heavy_size = heavy_size - i)
                             if verbose:
                                 print(f'  [head_{i_nexthead-1}] num glob_id = {len(global_id)}')
 
                             if condition is not 'GLOBAL':
                                 escaped = True
-                                div_head_escape = heavy_size - i_it
+                                div_head_escape = heavy_size - i
                                 div_tail_escape = CAP - div_head_escape
                                 break
                         if escaped:
@@ -298,7 +305,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                     # i_nexthead += 1
 
                 if last_is_global:
-                    # reached the last QK and it is globalized. Undo holder update and Wrap up with RDing leftover Ks 
+                    # reached the last QK and it is globalized. Wrap up with RDing leftover Ks 
                     state = 'wrapup'
                     new_head = old_head
                     old_head = None
@@ -324,7 +331,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                 inst_stream[time_step].append(_inst)
 
                 # WR new_head's heavy Q & global Q
-                if new_head.condition in ['HEAD']: #['HEAD', 'BALANCED']
+                if new_head.condition in ['HEAD', 'BALANCED']:
                     _operand_val = new_head.head_id + new_head.global_id
                 elif new_head.condition is 'TAIL':
                     _operand_val = new_head.tail_id + new_head.global_id
@@ -344,8 +351,7 @@ def QK_schedule(QKs, div, CAP, iter_cap ,heavy_size = -1, toplot = False, verbos
                 break
 
         time_step += 1
-
-    return inst_stream, global_leftover, head_infos
+    return inst_stream, global_leftover, head_infos, num_resort
 
 def global_wrapup(global_leftover, inst_stream):
     # execute head that is deemed as globalized
@@ -516,7 +522,6 @@ def calc_activeQ(inst_stream, head_infos):
         globQ_counts.append(len(_head.global_id))
     
     _activeQ = 0
-    subid_offset = head_infos[0].qk_id
     for time, insts in inst_stream.items():
 
         _headid = [inst.head_id for inst in insts]
@@ -537,8 +542,11 @@ def calc_activeQ(inst_stream, head_infos):
                 # The number of retired Q depends on occasion: interhead/intrahead
                 if condition == 'intra':
                     assert inst_stream[time-1][-1].OP == 'QINFO', f'[ERROR] inst stream format error. [time-1][-1].OP is not QINFO'
-                    # print(f'[DEBUG] inst_stream[time-1] (t={time-1}, _headid = {_headid}): \n {str(inst_stream[time-1])}')
-                    heavy_done = inst_stream[time-1][-1].operand_val - globQ_counts[_headid-subid_offset]
+                    try:
+                        heavy_done = inst_stream[time-1][-1].operand_val - globQ_counts[_headid]
+                    except:
+                        print(f'[DEBUG] time {time}, _headid = {_headid}, len(globQ_counts) = {len(globQ_counts)}')
+                        exit()
                     _activeQ -= heavy_done
 
                     if len(insts) == 1:
@@ -559,128 +567,100 @@ def calc_activeQ(inst_stream, head_infos):
     return inst_stream
 
 
-
-
-
-
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--heavy_size', type=int, default=-1, help='heavy size during sorting')
+    args = parser.parse_args()
+
+
     available_unit = 30
     heavy_size = -1
     verbose = False
+    head_print = False
     output_trace_dir = r'./OutTrace/'
+    output_hd_dir = r'./OutHead/'
 
     if not os.path.exists(output_trace_dir):
         os.makedirs(output_trace_dir)
-
-    # ----------- Single Head QK Trace ---------------#
-    # trace_dir = r'./Traces/TTST.txt'
-    # CAP=30
-
-    # trace_dir = r'./Traces/KVT.txt'
-    # CAP=198
-
-    # trace_dir = r'./Traces/EST.txt'
-    # CAP=64
 
     # ----------- All Head QK Trace files ---------------#
     trace_dir = r'./Traces/TTST_all/'
     CAP=30
     div=3
-    heavy_size = 15
+    _heavy_size = 15
+    heavy_size = args.heavy_size if args.heavy_size != -1 else _heavy_size
     iter_cap = heavy_size
     output_trace_dir += 'TTST.txt'
+    output_hd_dir += 'TTSThd.txt'
 
-    # trace_dir = r'./Traces/DRS_all/'
-    # CAP=48
-    # div=3
-    # heavy_size = 24
+    # a folder dir means to test all head in all file
+    filewise_QKs = folder_test(trace_dir)
+    total_resort = 0
 
-    # trace_dir = r'./Traces/EST_all/'
-    # CAP=64
-    # div=3
-
-    # trace_dir = r'./Traces/KVT_all/'
-    # CAP=198
-    # div=3
-
-    
+    filewise_accel = list()
+    f = open(output_trace_dir, 'w')
+    f2 = open(output_hd_dir, 'w')
+    f2.write(f'#head_id, #tail_id, #glob_id, #spareQ, #spareK, Heavy Size, INIT_Size {heavy_size} \n')
 
 
-    if 'txt' in trace_dir:
-        # means that only a single head trace is given
-        KQ_mat, sort_id, global_id, head_id, tail_id, condition = head_sort_fix(trace_dir=trace_dir, CAP=CAP, toplot = False, div=div)
-        # print(f'KQ mat shape:{KQ_mat.shape}')
-    else:
-        # a folder dir means to test all head in all file
-        imgwise_QKs = folder_test(trace_dir)
-        # each item contains 6 heads recorded in a single trace file; For TTST there are 6 heads in total
-        
+    for i in range(len(filewise_QKs)):
+        if verbose:
+            print(f'---- File Index {i} ---- ')
 
-        # print(f'[INFO] filewise QK has {len(imgwise_QKs)} items. One such item is :\n{imgwise_QKs[0]}')
+        f.write(f'---- File Index {i} ---- \n')
 
-        imgwise_accel = list()
-        f = open(output_trace_dir, 'w')
+        QKs = filewise_QKs[i]
+        inst_stream0, glob_leftover, head_infos, num_resort = QK_schedule(QKs, div, CAP, iter_cap = iter_cap, heavy_size = heavy_size, toplot = False, verbose = verbose)
+        total_resort += num_resort
 
-        for i in range(len(imgwise_QKs)):
-            print(f'---- IMG Index {i} ---- ')
+        print(f'[INFO] heavy info length = {len(head_infos)}; GLobal_leftover len = {len(glob_leftover)}')
+        if len(glob_leftover) != 0:   
+            print(f'[INFO] #GLOB = {len(glob_leftover)} out of {len(QKs)} QKs')
+            global_wrapup(global_leftover=glob_leftover, inst_stream = inst_stream0)
+        inst_stream = inst_stream_process(copy.deepcopy(inst_stream0))
 
-            f.write(f'---- IMG Index {i} ---- \n')
+        head_infos += glob_leftover
+        for _head in head_infos:
+            f2.write(f'{_head.metadata_format()}')
+        # globQ_counts = []
+        # for _head in head_infos:
+        #     globQ_counts.append(len(_head.global_id))
+        # print(f'Global Q weights per head:\n {globQ_counts}')
 
-            QKs = imgwise_QKs[i]
-            inst_stream0, glob_leftover, head_infos = QK_schedule(QKs, div, CAP, iter_cap = iter_cap, heavy_size = heavy_size, toplot = False, verbose = verbose)
+        if head_print:
+            for _head in head_infos:
+                print(_head)
+                # f.write(str(_head) + '\n')
 
-            if len(glob_leftover) != 0:   
-                # arrange the 'Global' QKs at the end of scheduling as brute-force implementation
-                global_wrapup(global_leftover=glob_leftover, inst_stream = inst_stream0)
-
-            # inst_stream = inst_stream_process(copy.deepcopy(inst_stream0))    # seems redundant to final implementation
-            inst_stream = copy.deepcopy(inst_stream0)
-
-            # globQ_counts = []
-            # for _head in head_infos:
-            #     globQ_counts.append(len(_head.global_id))
-            # print(f'Global Q weights per head:\n {globQ_counts}')
-
-            # print(f'[INFO]: INSTs before calc_activeQ')
-            # if verbose:
-            #     for k, v in inst_stream.items():
-            #         print(f'Timestep {k}:')
-            #         for inst in v:
-            #             print(f'\t{inst}')
-
-            inst_stream = calc_activeQ(inst_stream, head_infos)
-
-            # print(f'[INFO]: INSTs after calc_activeQ')
-            # if verbose:
-            #     for k, v in inst_stream.items():
-            #         print(f'Timestep {k}:')
-            #         for inst in v:
-            #             print(f'\t{inst}')
-
+        if verbose:
+            print(f'[INFO]: INSTs before calc_activeQ')
             for k, v in inst_stream.items():
-                f.write(f'Timestep {k}:\n')
+                print(f'Timestep {k}:')
                 for inst in v:
-                    f.write(f'\t{inst}\n')
+                    print(f'\t{inst}')
 
-            # print(f'---- ROUGH HW estimate ----')
-            all_heads = head_infos + glob_leftover
-            cycle_per_timestep = simple_hw_estimate(inst_stream0, all_heads) 
+        inst_stream = calc_activeQ(inst_stream, head_infos)
+
+        if verbose:
+            print(f'[INFO]: INSTs after calc_activeQ')
+            for k, v in inst_stream.items():
+                print(f'Timestep {k}:')
+                for inst in v:
+                    print(f'\t{inst}')
+
+        for k, v in inst_stream.items():
+            f.write(f'Timestep {k}:\n')
+            for inst in v:
+                f.write(f'\t{inst}\n')
+
+        # print(f'---- ROUGH HW estimate ----')
+        all_heads = head_infos + glob_leftover
             
-            cycle_bruteforce = CAP*2*len(QKs) 
-            cycle_accelerated = sum(cycle_per_timestep)
-            Acc_percent = (cycle_bruteforce/cycle_accelerated - 1) * 100
-
-            if verbose:
-                print(f'Bruteforce: {cycle_bruteforce} pseudo-cycles')
-                print(f'Accelerated: {cycle_accelerated} pseudo-cycles')
-
-            print(f'Accelerate by {Acc_percent:.2f}% \t Glob% = {len(glob_leftover)/len(QKs)*100:.2f}%')
-            imgwise_accel.append(Acc_percent)
-        
-        f.close()
-        print(f'---- SUMMARY ----')
-        print(f'\tFILE_id\t|\taccelerate%\t')
-        for i in range(len(imgwise_accel)):
-            print(f'\t{i}\t|\t{imgwise_accel[i]:.2f}%\t')
-        
-        print(f'Average acceleration: {np.mean(imgwise_accel):.2f}%')
+    f.close()
+    print(f'---- SUMMARY ----')
+    print(f'Total Resort times: {total_resort} (heavy_size = {heavy_size})')
+    print(f'\tFILE_id\t|\taccelerate%\t')
+    for i in range(len(filewise_accel)):
+        print(f'\t{i}\t|\t{filewise_accel[i]:.2f}%\t')
+    
+    print(f'Average acceleration: {np.mean(filewise_accel):.2f}%')
